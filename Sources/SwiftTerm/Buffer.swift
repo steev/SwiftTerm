@@ -114,6 +114,15 @@ class Buffer {
      */
     public var savedY: Int
 
+    /// Saved state for the origin mode
+    var savedOriginMode : Bool = false
+    /// Saved state for the origin mode
+    var savedMarginMode: Bool = false
+    /// Saved state for the wrap around mode
+    var savedWraparound : Bool = false
+    /// Saved state for the reverse wrap around mode
+    var savedReverseWraparound: Bool = false
+
     /**
      * The left margin, 0-indexed, used when marginMode is turned on
      */
@@ -225,6 +234,20 @@ class Buffer {
         
         // Figure out how to do this elegantly
         // SetupTabStops ()
+    }
+    
+    public func softReset ()
+    {
+        savedAttr = CharData.defaultAttr
+        savedY = 0
+        savedX = 0
+        savedCharset = CharSets.defaultCharset
+        marginRight = cols-1
+        marginLeft = 0
+        savedWraparound = false
+        savedOriginMode = false
+        savedMarginMode = false
+        savedReverseWraparound = false
     }
     
     public var isCursorInViewPort : Bool {
@@ -946,5 +969,5 @@ class Buffer {
         
             print ("[\(istr):\(cstr)]\(flag)\(yb) \(debugBuffer._lines.array [y].debugDescription)")
         }
-    }
+    }    
 }

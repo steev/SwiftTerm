@@ -15,6 +15,8 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
     var changingSize = false
     var logging: Bool = false
     var zoomGesture: NSMagnificationGestureRecognizer?
+    var postedTitle: String = ""
+    var postedDirectory: String? = nil
     
     func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {
         if changingSize {
@@ -31,8 +33,33 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
         changingSize = false
     }
     
+    func updateWindowTitle ()
+    {
+        var newTitle: String
+        if let dir = postedDirectory {
+            if let uri = URL(string: dir) {
+                if postedTitle == "" {
+                    newTitle = uri.path
+                } else {
+                    newTitle = "\(postedTitle) - \(uri.path)"
+                }
+            } else {
+                newTitle = postedTitle
+            }
+        } else {
+            newTitle = postedTitle
+        }
+        view.window?.title = newTitle
+    }
+    
     func setTerminalTitle(source: LocalProcessTerminalView, title: String) {
-        view.window?.title = title
+        postedTitle = title
+        updateWindowTitle ()
+    }
+    
+    func hostCurrentDirectoryUpdate (source: TerminalView, directory: String?) {
+        self.postedDirectory = directory
+        updateWindowTitle()
     }
     
     func processTerminated(source: TerminalView, exitCode: Int32?) {
@@ -46,6 +73,11 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
     var terminal: LocalProcessTerminalView!
 
     static var lastTerminal: LocalProcessTerminalView!
+    
+    func getBufferAsData () -> Data
+    {
+        return terminal.getTerminal().getBufferAsData ()
+    }
     
     func updateLogging ()
     {
@@ -167,6 +199,46 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
     }
     
     @objc @IBAction
+    func exportBuffer (_ source: AnyObject)
+    {
+        saveData { self.terminal.getTerminal().getBufferAsData () }
+    }
+
+    @objc @IBAction
+    func exportSelection (_ source: AnyObject)
+    {
+        saveData {
+            if let str = self.terminal.getSelection () {
+                return str.data (using: .utf8) ?? Data ()
+            }
+            return Data ()
+        }
+    }
+
+    func saveData (_ getData: @escaping () -> Data)
+    {
+        let savePanel = NSSavePanel ()
+        savePanel.canCreateDirectories = true
+        savePanel.allowedFileTypes = ["txt"]
+        savePanel.title = "Export Buffer Contents As Text"
+        savePanel.nameFieldStringValue = "TerminalCapture"
+        
+        savePanel.begin { (result) in
+            if result.rawValue == NSApplication.ModalResponse.OK.rawValue {
+                let data = getData ()
+                if let url = savePanel.url {
+                    do {
+                        try data.write(to: url)
+                    } catch let error as NSError {
+                        let alert = NSAlert (error: error)
+                        alert.runModal()
+                    }
+                }
+            }
+        }
+    }
+    
+    @objc @IBAction
     func softReset (_ source: AnyObject)
     {
         terminal.getTerminal().softReset ()
@@ -269,6 +341,11 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
             if let m = item as? NSMenuItem {
                 m.state = terminal.optionAsMetaKey ? NSControl.StateValue.on : NSControl.StateValue.off
             }
+        }
+        
+        // Only enable "Export selection" if we have a selection
+        if item.action == #selector(exportSelection(_:)) {
+            return terminal.selectionActive
         }
         return true
     }
